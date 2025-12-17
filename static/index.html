@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtomicWallet | Fintech Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen">
+
+    <div class="w-full max-w-md bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+        
+        <div class="flex items-center space-x-3 mb-8">
+            <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-xl">⚡</div>
+            <h1 class="text-2xl font-bold tracking-tight">AtomicWallet</h1>
+        </div>
+
+        <div id="loginSection">
+            <label class="block text-sm font-medium text-slate-400 mb-2">Username</label>
+            <div class="flex space-x-2">
+                <input type="text" id="usernameInput" placeholder="e.g. alice" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 transition">
+                <button onclick="login()" 
+                    class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-lg font-semibold transition">
+                    Enter
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 mt-3">If user doesn't exist, we'll create a wallet with $100.</p>
+        </div>
+
+        <div id="dashboardSection" class="hidden space-y-6">
+            
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-xl shadow-lg relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-20 text-6xl font-bold">$</div>
+                <p class="text-blue-100 text-sm font-medium">Current Balance</p>
+                <h2 class="text-4xl font-bold mt-1" id="displayBalance">$0.00</h2>
+                <p class="text-blue-200 text-xs mt-2">Wallet ID: <span id="displayUser" class="font-mono">...</span></p>
+            </div>
+
+            <div>
+                <h3 class="text-lg font-semibold mb-4">Send Money</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Receiver Username</label>
+                        <input type="text" id="receiverInput" placeholder="e.g. bob" 
+                            class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 mb-1">Amount ($)</label>
+                        <input type="number" id="amountInput" placeholder="0.00" min="0.01" step="0.01"
+    class="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <button onclick="transfer()" id="transferBtn"
+                        class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg transition flex justify-center items-center">
+                        Send Funds 💸
+                    </button>
+                </div>
+            </div>
+
+            <div id="statusMsg" class="hidden p-4 rounded-lg text-sm bg-slate-700 border border-slate-600"></div>
+
+            <button onclick="logout()" class="w-full text-slate-500 text-sm hover:text-white transition">Sign Out</button>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+
+        async function login() {
+            const username = document.getElementById('usernameInput').value.trim();
+            if(!username) return;
+
+            // Try to create wallet (if exists, it fails safely, then we just get balance)
+            try {
+                await fetch('/create_wallet', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username})
+                });
+            } catch(e) { console.log("User might exist already"); }
+
+            currentUser = username;
+            loadBalance();
+            
+            document.getElementById('loginSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('displayUser').innerText = username;
+        }
+
+        async function loadBalance() {
+            const res = await fetch(`/balance/${currentUser}`);
+            const data = await res.json();
+            if(res.ok) {
+                document.getElementById('displayBalance').innerText = `$${data.balance.toFixed(2)}`;
+            }
+        }
+
+        async function transfer() {
+    const receiver = document.getElementById('receiverInput').value.trim();
+    const amount = parseFloat(document.getElementById('amountInput').value);
+    const btn = document.getElementById('transferBtn');
+    const msgDiv = document.getElementById('statusMsg');
+
+    // Simple frontend validation
+    if(!receiver || !amount || amount <= 0) {
+        alert("Please enter a valid receiver and a positive amount.");
+        return;
+    }
+
+    // Loading State
+    btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/transfer', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                sender_username: currentUser,
+                receiver_username: receiver,
+                amount_dollars: amount
+            })
+        });
+        const data = await res.json();
+
+        msgDiv.classList.remove('hidden');
+        
+        if(res.ok) {
+            // SUCCESS
+            msgDiv.className = "p-4 rounded-lg text-sm bg-emerald-900/50 text-emerald-200 border border-emerald-800";
+            msgDiv.innerText = `✅ Success! Transferred $${amount} to ${receiver}`;
+            loadBalance(); 
+            // Clear inputs
+            document.getElementById('receiverInput').value = '';
+            document.getElementById('amountInput').value = '';
+        } else {
+            // ERROR HANDLING (The Fix)
+            msgDiv.className = "p-4 rounded-lg text-sm bg-red-900/50 text-red-200 border border-red-800";
+            
+            // Check if error is a Pydantic Validation Error (Array) or Custom Error (String)
+            if (Array.isArray(data.detail)) {
+                // It's a Pydantic error (e.g. negative number)
+                // We take the first error message from the list
+                const errorMsg = data.detail[0].msg; 
+                // Fix "ensure this value is greater than 0" to look nicer
+                msgDiv.innerText = `❌ Validation Error: ${errorMsg}`;
+            } else {
+                // It's our custom HTTPException (e.g. Insufficient funds)
+                msgDiv.innerText = `❌ Error: ${data.detail}`;
+            }
+        }
+    } catch(e) {
+        msgDiv.innerText = "❌ Network Error: Could not connect to server.";
+    }
+
+    // Reset Button
+    btn.innerHTML = "Send Funds 💸";
+    btn.disabled = false;
+}
+
+        function logout() {
+            location.reload();
+        }
+    </script>
+</body>
+</html>
