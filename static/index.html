@@ -16,7 +16,7 @@
         
         <div class="flex items-center space-x-3 mb-8">
             <div class="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center font-bold text-xl">⚡</div>
-            <h1 class="text-2xl font-bold tracking-tight">AtomicWallet</h1>
+            <h1 class="text-2xl font-bold tracking-tight">AtomicWallet- Demo</h1>
         </div>
 
         <div id="loginSection">
@@ -68,13 +68,18 @@
     </div>
 
     <script>
+        // Global variable to track the currently logged-in user
         let currentUser = null;
 
+        // Handles user login: creates wallet if new, loads balance, and shows dashboard
         async function login() {
+            // Get and trim the username input from the form
             const username = document.getElementById('usernameInput').value.trim();
+            // Exit early if username is empty
             if(!username) return;
 
-            // Try to create wallet (if exists, it fails safely, then we just get balance)
+            // Attempt to create a new wallet for the user on the backend
+            // If user already exists, the error is caught and ignored (wallet exists safely)
             try {
                 await fetch('/create_wallet', {
                     method: 'POST',
@@ -83,86 +88,102 @@
                 });
             } catch(e) { console.log("User might exist already"); }
 
+            // Store the logged-in username in the global variable
             currentUser = username;
+            // Fetch and display the user's current balance
             loadBalance();
             
+            // Switch from login view to dashboard view by hiding/showing sections
             document.getElementById('loginSection').classList.add('hidden');
             document.getElementById('dashboardSection').classList.remove('hidden');
+            // Display the username in the wallet ID area
             document.getElementById('displayUser').innerText = username;
         }
 
+        // Fetches the current balance from the backend and updates the display
         async function loadBalance() {
+            // Request balance data from the server for the current user
             const res = await fetch(`/balance/${currentUser}`);
             const data = await res.json();
+            // If request was successful, format and display the balance
             if(res.ok) {
                 document.getElementById('displayBalance').innerText = `$${data.balance.toFixed(2)}`;
             }
         }
 
+        // Handles money transfer: validates input, sends request, and displays result
         async function transfer() {
-    const receiver = document.getElementById('receiverInput').value.trim();
-    const amount = parseFloat(document.getElementById('amountInput').value);
-    const btn = document.getElementById('transferBtn');
-    const msgDiv = document.getElementById('statusMsg');
+            // Extract receiver username and amount from form inputs
+            const receiver = document.getElementById('receiverInput').value.trim();
+            const amount = parseFloat(document.getElementById('amountInput').value);
+            // Get references to the transfer button and status message display
+            const btn = document.getElementById('transferBtn');
+            const msgDiv = document.getElementById('statusMsg');
 
-    // Simple frontend validation
-    if(!receiver || !amount || amount <= 0) {
-        alert("Please enter a valid receiver and a positive amount.");
-        return;
-    }
-
-    // Loading State
-    btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
-    btn.disabled = true;
-
-    try {
-        const res = await fetch('/transfer', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                sender_username: currentUser,
-                receiver_username: receiver,
-                amount_dollars: amount
-            })
-        });
-        const data = await res.json();
-
-        msgDiv.classList.remove('hidden');
-        
-        if(res.ok) {
-            // SUCCESS
-            msgDiv.className = "p-4 rounded-lg text-sm bg-emerald-900/50 text-emerald-200 border border-emerald-800";
-            msgDiv.innerText = `✅ Success! Transferred $${amount} to ${receiver}`;
-            loadBalance(); 
-            // Clear inputs
-            document.getElementById('receiverInput').value = '';
-            document.getElementById('amountInput').value = '';
-        } else {
-            // ERROR HANDLING (The Fix)
-            msgDiv.className = "p-4 rounded-lg text-sm bg-red-900/50 text-red-200 border border-red-800";
-            
-            // Check if error is a Pydantic Validation Error (Array) or Custom Error (String)
-            if (Array.isArray(data.detail)) {
-                // It's a Pydantic error (e.g. negative number)
-                // We take the first error message from the list
-                const errorMsg = data.detail[0].msg; 
-                // Fix "ensure this value is greater than 0" to look nicer
-                msgDiv.innerText = `❌ Validation Error: ${errorMsg}`;
-            } else {
-                // It's our custom HTTPException (e.g. Insufficient funds)
-                msgDiv.innerText = `❌ Error: ${data.detail}`;
+            // Validate that both receiver and amount are provided and amount is positive
+            if(!receiver || !amount || amount <= 0) {
+                alert("Please enter a valid receiver and a positive amount.");
+                return;
             }
+
+            // Update button UI to show loading state with spinner animation
+            btn.innerHTML = `<svg class="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Processing...`;
+            // Disable button to prevent multiple submissions
+            btn.disabled = true;
+
+            try {
+                // Send transfer request to backend with sender, receiver, and amount
+                const res = await fetch('/transfer', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        sender_username: currentUser,
+                        receiver_username: receiver,
+                        amount_dollars: amount
+                    })
+                });
+                const data = await res.json();
+
+                // Show the status message container
+                msgDiv.classList.remove('hidden');
+                
+                if(res.ok) {
+                    // SUCCESS: Display green success message with transfer details
+                    msgDiv.className = "p-4 rounded-lg text-sm bg-emerald-900/50 text-emerald-200 border border-emerald-800";
+                    msgDiv.innerText = `✅ Success! Transferred $${amount} to ${receiver}`;
+                    // Refresh balance to reflect the transaction
+                    loadBalance(); 
+                    // Clear input fields for next transfer
+                    document.getElementById('receiverInput').value = '';
+                    document.getElementById('amountInput').value = '';
+                } else {
+                    // ERROR HANDLING: Display appropriate error message based on error type
+                    msgDiv.className = "p-4 rounded-lg text-sm bg-red-900/50 text-red-200 border border-red-800";
+                    
+                    // Check if error is a Pydantic Validation Error (Array) or Custom Error (String)
+                    if (Array.isArray(data.detail)) {
+                        // It's a Pydantic error (e.g. negative number) - extract first error message
+                        const errorMsg = data.detail[0].msg; 
+                        // Format validation error message for display
+                        msgDiv.innerText = `❌ Validation Error: ${errorMsg}`;
+                    } else {
+                        // It's our custom HTTPException (e.g. Insufficient funds)
+                        msgDiv.innerText = `❌ Error: ${data.detail}`;
+                    }
+                }
+            } catch(e) {
+                // Network error - display connection failure message
+                msgDiv.innerText = "❌ Network Error: Could not connect to server.";
+            }
+
+            // Restore button to normal state and re-enable for future clicks
+            btn.innerHTML = "Send Funds 💸";
+            btn.disabled = false;
         }
-    } catch(e) {
-        msgDiv.innerText = "❌ Network Error: Could not connect to server.";
-    }
 
-    // Reset Button
-    btn.innerHTML = "Send Funds 💸";
-    btn.disabled = false;
-}
-
+        // Clears user session and resets the page to login state
         function logout() {
+            // Reload page to clear currentUser and return to login screen
             location.reload();
         }
     </script>
