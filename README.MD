@@ -28,8 +28,8 @@ Follow these steps to run the project locally.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/atomic-wallet-fastapi.git
-cd atomic-wallet-fastapi
+git clone https://github.com/div10000/atomic_wallet.git
+cd atomic_wallet
 ```
 
 ### 2. Set up the Environment
